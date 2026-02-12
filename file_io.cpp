@@ -1625,7 +1625,14 @@ int ScanDirectory(char* path, int mode, const char *extension, int options, cons
 					//skip non-selectable files
 					if (!strcasecmp(de->d_name, "menu.rbf")) continue;
 					if (!strncasecmp(de->d_name, "menu_20", 7)) continue;
-					if (!strcasecmp(de->d_name, "boot.rom")) continue;
+					if (!strncasecmp(de->d_name, "boot", 4))
+					{
+						int len = strlen(de->d_name);
+						if ((len == 8 || (len == 9 && de->d_name[4] >= '0' && de->d_name[4] <= '9')) && !strcasecmp(de->d_name + len - 4, ".rom"))
+						{
+							continue;
+						}
+					}
 
 					//check the prefix if given
 					if (prefix && strncasecmp(prefix, de->d_name, strlen(prefix))) continue;
@@ -1896,6 +1903,80 @@ int ScanDirectory(char* path, int mode, const char *extension, int options, cons
 				iSelectedEntry = pos;
 				if (iSelectedEntry + (OsdGetSize() / 2) >= flist_nDirEntries()) iFirstEntry = flist_nDirEntries() - OsdGetSize();
 				else iFirstEntry = iSelectedEntry - (OsdGetSize() / 2) + 1;
+				if (iFirstEntry < 0) iFirstEntry = 0;
+			}
+		}
+		else if (mode == SCANF_NEXT_CHAR)
+		{
+			//DirItem is sorted, so just advance until the first character changes.
+			//if we reach the end before that don't change anything.
+			//If we change d_type also consider that 'next'. This means next
+			//advances through directories, and then advances through files
+			//
+			int found = -1;
+			char curdType = DirItem[iSelectedEntry].de.d_type;
+			char curChar = DirItem[iSelectedEntry].altname[0]; 
+			if ((curChar == '_') && (curdType == DT_DIR) && (options & SCANO_CORES))
+				curChar = DirItem[iSelectedEntry].altname[1];
+			curChar = toupper(curChar);
+
+			for (int i = iSelectedEntry+1; i < flist_nDirEntries(); i++)
+			{
+				char tryChar = DirItem[i].altname[0];
+				if ((tryChar == '_') && (DirItem[i].de.d_type == DT_DIR) && (options & SCANO_CORES))
+					tryChar = DirItem[i].altname[1];
+				if (toupper(tryChar) != curChar || DirItem[i].de.d_type != curdType)
+				{
+					found = i;
+					break;
+				}
+			}
+			if (found >= 0)
+			{
+				iSelectedEntry = found;
+				if (iSelectedEntry + (OsdGetSize() / 2) >= flist_nDirEntries()) iFirstEntry = flist_nDirEntries() - OsdGetSize();
+				else iFirstEntry = iSelectedEntry - (OsdGetSize()/2) + 1;
+				if (iFirstEntry < 0) iFirstEntry = 0;
+			}
+		}
+		else if (mode == SCANF_PREV_CHAR)
+		{
+			//Previous seek seeks to the FIRST entry that starts with the previous letter
+			//Search backward until the first char changes, and then continue looking backward
+			//until it changes again. 
+
+
+			int found = -1;
+			char curdType = DirItem[iSelectedEntry].de.d_type;
+			bool sawChange = false;
+			char curChar = DirItem[iSelectedEntry].altname[0]; 
+			if ((curChar == '_') && (curdType == DT_DIR) && (options & SCANO_CORES))
+				curChar = DirItem[iSelectedEntry].altname[1];
+			curChar = toupper(curChar);
+			for (int i = iSelectedEntry-1; i >= 0; i--)
+			{
+				char tryChar = DirItem[i].altname[0];
+				if ((tryChar == '_') && (DirItem[i].de.d_type == DT_DIR) && (options & SCANO_CORES))
+					tryChar = DirItem[i].altname[1];
+				if (toupper(tryChar) != curChar || DirItem[i].de.d_type != curdType)
+				{
+					if (sawChange)
+					{
+						found = i+1;
+						break;
+					}
+					sawChange = true;
+					curChar = DirItem[i].altname[0];
+					if (curChar == '_')
+						curChar = DirItem[i].altname[1];
+					curChar = toupper(curChar);
+				}
+			}
+			if (found >= 0)
+			{
+				iSelectedEntry = found;
+				if (iSelectedEntry + (OsdGetSize() / 2) >= flist_nDirEntries()) iFirstEntry = flist_nDirEntries() - OsdGetSize();
+				else iFirstEntry = iSelectedEntry - (OsdGetSize()/2) + 1;
 				if (iFirstEntry < 0) iFirstEntry = 0;
 			}
 		}

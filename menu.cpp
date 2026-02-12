@@ -2221,8 +2221,9 @@ void HandleUI(void)
 						memcpy(Selected_tmp, Selected_S[(int)ioctl_index], sizeof(Selected_tmp));
 						if (is_x86() || is_pcxt()) strcpy(Selected_tmp, x86_get_image_path(ioctl_index));
 						if (is_psx() && (ioctl_index == 2 || ioctl_index == 3)) fs_Options |= SCANO_SAVES;
+						if (is_saturn() && (ioctl_index == 1)) fs_Options |= SCANO_SAVES;
 
-						if (is_saturn() || is_pce() || is_megacd() || is_x86() || is_cdi() || (is_psx() && !(fs_Options & SCANO_SAVES)) || is_neogeo())
+						if ((is_saturn() && !(fs_Options & SCANO_SAVES)) || is_pce() || is_megacd() || is_x86() || is_cdi() || (is_psx() && !(fs_Options & SCANO_SAVES)) || is_neogeo())
 						{
 							//look for CHD too
 							if (!strcasestr(ext, "CHD"))
@@ -2348,6 +2349,7 @@ void HandleUI(void)
 									if (is_pce() && !bit) pcecd_reset();
 									if (is_saturn() && !bit) saturn_reset();
 									if (is_n64() && !bit) n64_reset();
+									if (is_psx() && !bit) psx_reset();
 
 									user_io_status_set(opt, 1, ex);
 									user_io_status_set(opt, 0, ex);
@@ -2391,6 +2393,15 @@ void HandleUI(void)
 			{
 				if(mgl->item[mgl->current].path[0] == '/') snprintf(selPath, sizeof(selPath), "%s", mgl->item[mgl->current].path);
 				else snprintf(selPath, sizeof(selPath), "%s/%s", HomeDir(), mgl->item[mgl->current].path);
+
+				// Update /tmp/ files to reflect the actual file being loaded by MGL
+				if (cfg.log_file_entry)
+				{
+					const char *fname = strrchr(selPath, '/');
+						MakeFile("/tmp/FULLPATH", selPath);
+					MakeFile("/tmp/CURRENTPATH", fname ? fname + 1 : selPath);
+					MakeFile("/tmp/FILESELECT", "selected");
+				}
 			}
 
 			MenuHide();
@@ -2431,6 +2442,10 @@ void HandleUI(void)
 						if (!n64_rom_tx(selPath, idx, load_addr, n64_crc)) Info("failed to load ROM");
 						else if (user_io_use_cheats() && !store_name) cheats_init(selPath, n64_crc);
 					}
+					else if (is_c64() || is_c128())
+					{
+						c64_open_file(selPath, idx);
+					}
 					else
 					{
 						user_io_file_tx(selPath, idx, opensave, 0, 0, load_addr);
@@ -2451,6 +2466,15 @@ void HandleUI(void)
 			{
 				if (mgl->item[mgl->current].path[0] == '/') snprintf(selPath, sizeof(selPath), "%s", mgl->item[mgl->current].path);
 				else snprintf(selPath, sizeof(selPath), "%s/%s", HomeDir(((is_pce() && !strncasecmp(fs_pFileExt, "CUE", 3)) ? PCECD_DIR : NULL)), mgl->item[mgl->current].path);
+
+				// Update /tmp/ files to reflect the actual image being loaded by MGL
+				if (cfg.log_file_entry)
+				{
+					const char *fname = strrchr(selPath, '/');
+						MakeFile("/tmp/FULLPATH", selPath);
+					MakeFile("/tmp/CURRENTPATH", fname ? fname + 1 : selPath);
+					MakeFile("/tmp/FILESELECT", "selected");
+				}
 			}
 
 			if (store_name)
@@ -2494,7 +2518,12 @@ void HandleUI(void)
 			}
 			else if (is_saturn())
 			{
-				saturn_set_image(ioctl_index, selPath);
+				if (!ioctl_index)
+				{
+					saturn_set_image(ioctl_index, selPath);
+				} else {
+					saturn_mount_save(selPath);
+				}
 			}
 			else if (is_neogeo())
 			{
@@ -3092,7 +3121,7 @@ void HandleUI(void)
 				exit(1); //should never be reached
 			}
 		} else {
-			menustate = MENU_DOC_NO_FBTERM; 
+			menustate = MENU_DOC_NO_FBTERM;
 		}
 
 		break;
@@ -3140,7 +3169,7 @@ void HandleUI(void)
 		break;
 
 		case MENU_DOC_NO_FBTERM2:
-			if (select) 
+			if (select)
 			{
 				menustate = MENU_NONE1;
 				menusub = 3;
@@ -5676,7 +5705,18 @@ void HandleUI(void)
 		break;
 
 	case MENU_MINIMIG_ADFFILE_SELECTED:
-		if (!mgl->done) snprintf(selPath, sizeof(selPath), "%s/%s", HomeDir(), mgl->item[mgl->current].path);
+		if (!mgl->done)
+		{
+			snprintf(selPath, sizeof(selPath), "%s/%s", HomeDir(), mgl->item[mgl->current].path);
+			// Update /tmp/ files to reflect the actual file being loaded by MGL
+			if (cfg.log_file_entry)
+			{
+				const char *fname = strrchr(selPath, '/');
+				MakeFile("/tmp/FULLPATH", selPath);
+				MakeFile("/tmp/CURRENTPATH", fname ? fname + 1 : selPath);
+				MakeFile("/tmp/FILESELECT", "selected");
+			}
+		}
 		memcpy(Selected_F[menusub], selPath, sizeof(Selected_F[menusub]));
 		if (mgl->done) recent_update(SelectedDir, selPath, SelectedLabel, 0);
 		InsertFloppy(&df[menusub], selPath);
