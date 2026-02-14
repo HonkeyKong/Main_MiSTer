@@ -5440,14 +5440,75 @@ int input_test(int getchar)
 									}
 								}
 
+								const int volume_abs_down = 2; // example ABS code for volume down
+								const int volume_abs_up = 5;   // example ABS code for volume up
+								static bool vDownHeld = false;
+								static bool vUpHeld = false;
+								static bool chordLatched = false;
+
 								// Volume controls for GRS Ultimate Deck for iiRcade + Viper KVM (XInput Mode)
 								// The KVM board exposes volume buttons as fake ABS axes.
 								if (input[dev].vid == 0x045e && input[dev].pid == 0x028e && ev.type == EV_ABS)
 								{
-									// Volume Down mapped to ABS code 2
-									if (ev.code == 2 && ev.value == 255) set_volume(-1);
-									// Volume Up mapped to ABS code 5
-									if (ev.code == 5 && ev.value == 255) set_volume(1);
+
+									// Update held state
+									if (ev.code == volume_abs_down) vDownHeld = (ev.value == 255);
+									if (ev.code == volume_abs_up)   vUpHeld   = (ev.value == 255);
+
+									// Chord: both held => toggle mute once
+									if (vDownHeld && vUpHeld) {
+										if (!chordLatched) {
+											set_volume(0);        // toggle mute
+											chordLatched = true;  // latch until chord released
+										}
+										return 0; // don't also do +/- while chord is held
+									} else {
+										chordLatched = false; // chord released
+									}
+
+									// Single-button actions (only on press edge)
+									static bool vDownPressed = false;
+									static bool vUpPressed = false;
+
+									if (ev.code == volume_abs_down) {
+										if (ev.value == 255 && !vDownPressed) { set_volume(-1); vDownPressed = true; }
+										else if (ev.value == 0)               { vDownPressed = false; }
+									}
+									else if (ev.code == volume_abs_up) {
+										if (ev.value == 255 && !vUpPressed)   { set_volume(1);  vUpPressed = true; }
+										else if (ev.value == 0)               { vUpPressed = false; }
+									}
+
+									/* if(ev.code == 2) // Volume Down mapped to ABS code 2
+									{
+										if(ev.value == 255 && !vDownPressed)
+										{
+											set_volume(-1);
+											vDownPressed = true;
+										}
+										else if(ev.value == 0)
+										{
+											vDownPressed = false;
+										}
+									}
+									else if(ev.code == 5) // Volume Up mapped to ABS code 5
+									{
+										if(ev.value == 255 && !vUpPressed)
+										{
+											set_volume(1);
+											vUpPressed = true;
+										}
+										else if(ev.value == 0)
+										{
+											vUpPressed = false;
+										}
+									}
+
+									if(vUpPressed && vDownPressed)
+									{
+										// If both buttons are pressed, mute the volume.
+										set_volume(0);
+									} */
 								}
 
 								if (is_menu() && !video_fb_state())
